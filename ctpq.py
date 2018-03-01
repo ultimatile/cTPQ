@@ -60,7 +60,7 @@ for realization in np.arange(realizations):
                 cene2+=cene2_k
                 factor*=(N*beta)**2/(4*k*k+6*k+2)
             if k == steps-1:
-                print("realization",realization,"repeat",repeat,"tmp",t,"unconveged!!")
+                print("realization",realization,"repeat",repeat,"tmp",t,"unconverged!!")
                 sys.exit()
             C_t[repeat]=np.mean(cene2)/np.mean(cnorm)-np.mean(cene)**2/(np.mean(cnorm)**2)
         C[realization,index]=beta*beta*np.mean(C_t)
