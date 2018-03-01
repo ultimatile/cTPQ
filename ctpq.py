@@ -27,10 +27,17 @@ std_C=np.zeros((realizations,Tsteps),dtype=np.float_)
 for realization in np.arange(realizations):
     print(time()-itime)
     for sample in np.arange(samples):
+<<<<<<< HEAD
         SS[sample,:,:]=np.genfromtxt("zvo{}_SS_rand{}.dat".format(realization,sample))#,skip_header=1)
         norm[sample,:]=np.cumprod(np.genfromtxt("zvo{}_Norm_rand{}.dat".format(realization,sample))[:,1])**2
         ene[sample,:]=SS[sample,:,1]*norm[sample,:]
         ene2[sample,:]=SS[sample,:,2]*norm[sample,:]
+=======
+        SS[sample,:,:]=np.genfromtxt("zvo{}_SS_rand{}.dat".format(realization,sample))
+        norm[sample,realization,:]=np.cumprod(np.genfromtxt("zvo{}_Norm_rand{}.dat".format(realization,sample))[:,1])**2
+        ene[sample,realization,:]=SS[sample,:,1]*norm[sample,realization,:]
+        ene2[sample,realization,:]=SS[sample,:,2]*norm[sample,realization,:]
+>>>>>>> e155b060d1c67d08716aa7cc42b302a3089588c0
     index=0
     for t in T:
         C_t=np.zeros(repeats,dtype=np.float_)
