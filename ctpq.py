@@ -10,27 +10,27 @@ cmap = plt.get_cmap("gnuplot")
 color=lambda a:cmap(float(a))
 l=2
 N=18
-Tmin=1
-Tmax=20
-Tsteps=100
+Tmin=0.09
+Tmax=0.1
+Tsteps=10
 T=np.linspace(Tmin,Tmax,Tsteps)
 realizations=40
 samples=100
 repeats=1000
 steps=300
 SS=np.zeros((samples,steps,6),dtype=np.float_)
-ene=np.zeros((samples,realizations,steps),dtype=np.float_)
-ene2=np.zeros((samples,realizations,steps),dtype=np.float_)
-norm=np.zeros((samples,realizations,steps),dtype=np.float_)
+ene=np.zeros((samples,steps),dtype=np.float_)
+ene2=np.zeros((samples,steps),dtype=np.float_)
+norm=np.zeros((samples,steps),dtype=np.float_)
 C=np.zeros((realizations,Tsteps),dtype=np.float_)
 std_C=np.zeros((realizations,Tsteps),dtype=np.float_)
 for realization in np.arange(realizations):
     print(time()-itime)
     for sample in np.arange(samples):
         SS[sample,:,:]=np.genfromtxt("zvo{}_SS_rand{}.dat".format(realization,sample))#,skip_header=1)
-        norm[sample,realization,:]=np.cumprod(np.genfromtxt("zvo{}_Norm_rand{}.dat".format(realization,sample))[:,1])**2
-        ene[sample,realization,:]=SS[sample,:,1]*(norm[sample,realization,:])
-        ene2[sample,realization,:]=SS[sample,:,2]*(norm[sample,realization,:])
+        norm[sample,:]=np.cumprod(np.genfromtxt("zvo{}_Norm_rand{}.dat".format(realization,sample))[:,1])**2
+        ene[sample,:]=SS[sample,:,1]*norm[sample,:]
+        ene2[sample,:]=SS[sample,:,2]*norm[sample,:]
     index=0
     for t in T:
         C_t=np.zeros(repeats,dtype=np.float_)
@@ -44,20 +44,24 @@ for realization in np.arange(realizations):
             max_cnorm_k=0
             max_cene_k=0
             max_cene2_k=0
-            for k in np.arange(steps-1):
-                cnorm_k=((1+l*beta*N/(2*k+1))*norm[id_b,realization,k]-beta/(2*k+1)*ene[id_b,realization,k])*factor
-                cene_k=((1+l*beta*N/(2*k+1))*ene[id_b,realization,k]-beta/(2*k+1)*ene2[id_b,realization,k])*factor
-                #cene2_k=((1-l*beta*N/(2*k+1))*ene2[id_b,realization,k]+(l*l*beta*N*N/(2*k+1))*ene[id_b,realization,k]-beta*N*N/(2*k+1)*ene[id_b,realization,k+1])*factor
-                cene2_k=(ene2[id_b,realization,k]+beta*N/(2*k+1)*(l*l*l*N*N*norm[id_b,realization,k]-l*l*N*ene[id_b,realization,k]-l*N*N*norm[id_b,realization,k+1]-N*ene[id_b,realization,k+1]))*factor
+            for k in np.arange(steps):
+                cnorm_k=((1+l*beta*N/(2*k+1))*norm[id_b,k]-beta/(2*k+1)*ene[id_b,k])*factor
+                cene_k=((1+l*beta*N/(2*k+1))*ene[id_b,k]-beta/(2*k+1)*ene2[id_b,k])*factor
+                cene2_k=((1-l*beta*N/(2*k+1))*ene2[id_b,k]+(l*l*beta*N*N/(2*k+1))*ene[id_b,k]-beta*N*N/(2*k+1)*ene[id_b,k+1])*factor
+                #cene2_k=(ene2[id_b,k]+beta*N/(2*k+1)*(l*l*l*N*N*norm[id_b,k]-l*l*N*ene[id_b,k]-l*N*N*norm[id_b,k+1]-N*ene[id_b,k+1]))*factor
                 max_cnorm_k=np.max(np.hstack((max_cnorm_k,np.abs(cnorm_k))))
                 max_cene_k=np.max(np.hstack((max_cene_k,np.abs(cene_k))))
                 max_cene2_k=np.max(np.hstack((max_cene2_k,np.abs(cene2_k))))
                 if np.max(np.abs(cnorm_k)) < max_cnorm_k*sys.float_info.epsilon and np.max(np.abs(cene_k)) < max_cene_k*sys.float_info.epsilon and np.max(np.abs(cene2_k)) < max_cene2_k*sys.float_info.epsilon:
+                    print("realization",realization,"repeat",repeat,"tmp",t,"cutoff",k)
                     break
                 cnorm+=cnorm_k
                 cene+=cene_k
                 cene2+=cene2_k
                 factor*=(N*beta)**2/(4*k*k+6*k+2)
+            if k == steps-1:
+                print("realization",realization,"repeat",repeat,"tmp",t,"unconveged!!")
+                sys.exit()
             C_t[repeat]=np.mean(cene2)/np.mean(cnorm)-np.mean(cene)**2/(np.mean(cnorm)**2)
         C[realization,index]=beta*beta*np.mean(C_t)
         std_C[realization,index]=beta*beta*np.std(C_t,ddof=1)
