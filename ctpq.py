@@ -10,13 +10,13 @@ cmap = plt.get_cmap("gnuplot")
 color=lambda a:cmap(float(a))
 l=2
 N=18
-Tmin=0.09
-Tmax=0.1
+Tmin=1
+Tmax=10
 Tsteps=10
 T=np.linspace(Tmin,Tmax,Tsteps)
-realizations=40
-samples=100
-repeats=1000
+realizations=1
+samples=10
+repeats=10
 steps=300
 SS=np.zeros((samples,steps,6),dtype=np.float_)
 ene=np.zeros((samples,steps),dtype=np.float_)
@@ -44,7 +44,7 @@ for realization in np.arange(realizations):
             max_cnorm_k=0
             max_cene_k=0
             max_cene2_k=0
-            for k in np.arange(steps):
+            for k in np.arange(steps-1):
                 cnorm_k=((1+l*beta*N/(2*k+1))*norm[id_b,k]-beta/(2*k+1)*ene[id_b,k])*factor
                 cene_k=((1+l*beta*N/(2*k+1))*ene[id_b,k]-beta/(2*k+1)*ene2[id_b,k])*factor
                 cene2_k=((1-l*beta*N/(2*k+1))*ene2[id_b,k]+(l*l*beta*N*N/(2*k+1))*ene[id_b,k]-beta*N*N/(2*k+1)*ene[id_b,k+1])*factor
