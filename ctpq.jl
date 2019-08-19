@@ -12,24 +12,24 @@ end
 
 function main(mp)
     #repeats = 1 cause NaN of std(C_t)
-    SS = zeros(mp.samples,mp.steps,6);ene = zeros(mp.samples,mp.steps);
-    ene2 = zeros(mp.samples,mp.steps);norm = zeros(mp.samples,mp.steps)
-    C = zeros(mp.realizations,mp.Tsteps);std_C = zeros(mp.realizations,mp.Tsteps)
+    SS = zeros(mp.samples, mp.steps, 6);ene = zeros(mp.samples, mp.steps)
+    ene2 = zeros(mp.samples, mp.steps);norm = zeros(mp.samples, mp.steps)
+    C = zeros(mp.realizations, mp.Tsteps);std_C = zeros(mp.realizations, mp.Tsteps)
     #eneGS=readdlm("energy.dat")
-    eneGS = zeros(realizations)#
-    T = range(Tmin,Tmax,length=Tsteps)
+    eneGS = zeros(realizations)
+    T = range(Tmin, Tmax, length=Tsteps)
     for realization in 1:mp.realizations
         for sample in 1:mp.samples
-            SS[sample,:,:] = readdlm("zvo$(realization-1)_SS_rand$(sample-1).dat",Float64,comments=true)
-            norm[sample,:] = cumprod(readdlm("zvo$(realization-1)_Norm_rand$(sample-1).dat",Float64,comments=true)[:,2]).^2
-            ene[sample,:] = SS[sample,:,2].*norm[sample,:]
-            ene2[sample,:] = SS[sample,:,3].*norm[sample,:]
+            SS[sample, :, :] = readdlm("zvo$(realization-1)_SS_rand$(sample-1).dat", Float64, comments=true)
+            norm[sample, :] = cumprod(readdlm("zvo$(realization-1)_Norm_rand$(sample-1).dat", Float64, comments=true)[:,2]).^2
+            ene[sample, :] = SS[sample,:,2].*norm[sample, :]
+            ene2[sample, :] = SS[sample,:,3].*norm[sample, :]
         end #for sample in 1:mp.samples
         for Tindex in 1:mp.Tsteps
             beta = 1/T[Tindex]
             C_t = zeros(mp.repeats)
             for repeat in 1:mp.repeats
-                cnorm=zeros(mp.samples);cene2=zeros(mp.samples);cene=zeros(mp.samples)
+                cnorm = zeros(mp.samples);cene2 = zeros(mp.samples);cene = zeros(mp.samples)
                 id_b = rand(1:mp.samples,mp.samples)
                 factor = exp(BigFloat(-N*beta*l+beta*eneGS[realization]))
                 max_cnorm_k = BigFloat(0);max_cene_k = BigFloat(0);max_cene2_k = BigFloat(0)
@@ -46,7 +46,7 @@ function main(mp)
                     if max_cene_k < tmp_max_cene_k;max_cene_k = tmp_max_cene_k;end
                     if max_cene2_k < tmp_max_cene2_k;max_cene2_k = tmp_max_cene2_k;end
                     if tmp_max_cnorm_k < max_cnorm_k*eps(Float64) && tmp_max_cene_k < max_cene_k*eps(Float64) && tmp_max_cene2_k < max_cene2_k*eps(Float64)
-                        println("realization:",realization," repeat:",repeat," t:",1/beta," cutoff:",k)
+                        println("realization:", realization, " repeat:", repeat, " t:", 1/beta, " cutoff:", k)
                         ret = 1
                         break
                     end
@@ -56,19 +56,17 @@ function main(mp)
                     cene2 += cene2_k
                     factor *= (mp.N*beta)^2/(4*k*k+6*k+2)
                 end #for k in 0:steps-1
-                #exit()
-                if ret == 0;println("realization:",realization," repeat:",repeat," t:",1/beta," unconverged!!");end
+                if ret == 0;println("realization:", realization, " repeat:", repeat, " t:", 1/beta, " unconverged!!");end
                 C_t[repeat] = mean(cene2)/mean(cnorm)-mean(cene)^2/(mean(cnorm)^2)
                 @assert C_t[repeat] > 0 "C = $(C_t[repeat]) is negative!"
             end #repeat in 1:repeats
             mean_C_t = mean(C_t)
-            C[realization,Tindex] = beta*beta*mean_C_t
-            std_C[realization,Tindex] = beta*beta*std(C_t,corrected=true,mean=mean_C_t)
+            C[realization, Tindex] = beta*beta*mean_C_t
+            std_C[realization, Tindex] = beta*beta*std(C_t, corrected=true, mean=mean_C_t)
         end #for Tindex in 1:Tsteps
     end #for realization=0:realizations
-    yerr = sqrt.(mean(std_C.^2,dims=1)/mp.realizations)/mp.N
-    y = mean(C,dims=1)/mp.N
-    #println(yerr)
+    yerr = sqrt.(mean(std_C.^2, dims=1)/mp.realizations)/mp.N
+    y = mean(C, dims=1)/mp.N
     writedlm("CSHN$(mp.N)T$(mp.Tmin)_$(mp.Tmax).dat", [T y' yerr'])
 end
 
@@ -83,5 +81,5 @@ const steps=300
 const Tmin=0.2
 const Tmax=20
 const Tsteps=2
-modpara=mp(l,N,realizations,samples,repeats,steps,Tmin,Tmax,Tsteps)
+modpara=mp(l, N, realizations, samples, repeats, steps, Tmin, Tmax, Tsteps)
 @time main(modpara)
