@@ -4,7 +4,7 @@ using Statistics
 
 function parse_commandline()
     s = ArgParseSettings()
-    s.description = "This program provide HPhi define file for the SSDed exchange or Ising interactions."
+    s.description = "This is for observation of cTPQ by mTPQ data obtained by HPhi."
     @add_arg_table s begin
     "--calibration", "-c"
         help = "an option for determine the minimum temperature"
