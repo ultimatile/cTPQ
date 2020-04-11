@@ -25,28 +25,6 @@ function parse_commandline()
     return parse_args(s)
 end
 
-"""
-struct mp
-    l :: Float64
-    N :: Int64
-    twoS :: Int64
-    NSz_half :: Int64
-    realizations :: Int64
-    samples :: Int64
-    repeats :: Int64
-    steps :: Int64
-    Tmin :: Float64
-    Tmax :: Float64
-    Tsteps :: Int64
-    flag_cal :: Bool
-    flag_ene :: Bool
-    flag_Sz :: Bool
-    function mp(l, N, twoS, realizations, samples, repeats , steps, Tmin, Tmax, Tsteps, flag_cal, flag_ene, flag_Sz)
-        new(l, N, twoS, div(N * TwoS, 2) + 1, realizations, samples, repeats , steps, Tmin, Tmax, Tsteps, flag_cal, flag_ene, flag_Sz)
-    end
-end
-"""
-
 struct mp
     l :: Float64
     N :: Int64
@@ -72,8 +50,18 @@ mutable struct Intermediates
         ene2 = zeros(mp.samples, mp.steps)
         norm = zeros(mp.samples, mp.steps)
         for sample in 1:mp.samples
-            SS = readdlm("zvo$(realization - 1)_SS_rand$(sample - 1).dat", Float64, comments = true)
-            norm[sample, :] = cumprod(readdlm("zvo$(realization - 1)_Norm_rand$(sample - 1).dat", Float64, comments = true)[:, 2]) .^ 2
+            if mp.realizations == 1
+                try
+                    SS = readdlm("SS_rand$(sample - 1).dat", Float64, comments = true)
+                    norm[sample, :] = cumprod(readdlm("Norm_rand$(sample - 1).dat", Float64, comments = true)[:, 2]) .^ 2
+                catch
+                    SS = readdlm("zvo$(realization - 1)_SS_rand$(sample - 1).dat", Float64, comments = true)
+                    norm[sample, :] = cumprod(readdlm("zvo$(realization - 1)_Norm_rand$(sample - 1).dat", Float64, comments = true)[:, 2]) .^ 2
+                end
+            else
+                SS = readdlm("zvo$(realization - 1)_SS_rand$(sample - 1).dat", Float64, comments = true)
+                norm[sample, :] = cumprod(readdlm("zvo$(realization - 1)_Norm_rand$(sample - 1).dat", Float64, comments = true)[:, 2]) .^ 2
+            end
             ene[sample, :] = SS[:, 2] .* norm[sample, :]
             ene2[sample, :] = SS[:, 3] .* norm[sample, :]
         end #for sample in 1:mp.samples
@@ -94,11 +82,11 @@ mutable struct Intermediates_Sz
             for sample in 1:mp.samples
                 if mp.realizations == 1
                     try
-                        SS = readdlm("zvo_SS_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)
-                        norm[iSz, sample, :] = cumprod(readdlm("zvo_Norm_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)[:, 2]) .^ 2
+                        SS = readdlm("SS_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)
+                        norm[iSz, sample, :] = cumprod(readdlm("Norm_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)[:, 2]) .^ 2
                     catch
                         SS = readdlm("zvo$(realization - 1)_SS_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)
-                        norm[iSz, sample, :] = cumprod(readdlm("zvo$(realization - 1)_Norm_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)[:, 2]) .^ 2
+                        norm[iSz, sample, :] .= cumprod(readdlm("zvo$(realization - 1)_Norm_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)[:, 2]) .^ 2
                     end
                 else
                     SS = readdlm("zvo$(realization - 1)_SS_rand$(sample - 1)_twoSz$(twoSz).dat", Float64, comments = true)
@@ -106,8 +94,8 @@ mutable struct Intermediates_Sz
                 end
                 ene[iSz, sample, :] = SS[:, 2] .* norm[iSz, sample, :]
                 ene2[iSz, sample, :] = SS[:, 3] .* norm[iSz, sample, :]
-                iSz += 1
             end #for sample in 1:mp.samples
+            iSz += 1
         end# for twoSz in -twoS*N:2:twoS*N
         new(norm, ene, ene2)
     end
@@ -194,6 +182,7 @@ function main(mp)
     end
 
     T = range(mp.Tmin, mp.Tmax, length = mp.Tsteps)
+
     for realization in 1:mp.realizations
         if mp.flag_Sz
             intr = Intermediates_Sz(mp, realization)
@@ -208,16 +197,27 @@ function main(mp)
             for repeat in 1:mp.repeats
                 if mp.flag_Sz
                     iSz = 1
+                    cnorm = zeros(mp.samples); cene2 = zeros(mp.samples); cene = zeros(mp.samples)
                     for twoSz in mod(mp.twoS * mp.N, 2):2:mp.twoS * mp.N
-                        cnorm, cene, cene2, k, ret = calc_canon(mp, intr, eneGS[realization], beta, iSz)
+                        tmp_cnorm, tmp_cene, tmp_cene2, k, ret = calc_canon(mp, intr, eneGS[realization], beta, iSz)
                         check_converge(ret, realization, repeat, beta, k)
-                        mean_cnorm = mean(cnorm)
-                        C_t[repeat] += mean(cene2) / mean_cnorm - mean(cene) ^ 2 / (mean_cnorm ^ 2)
-                        χ_t[repeat] += twoSz * twoSz * mean_cnorm
-                        @assert C_t[repeat] > 0 "C = $(C_t[repeat]) is negative!"
-                        @assert χ_t[repeat] > 0 "χ = $(χ_t[repeat]) is negative!"
+                        mean_tmp_cnorm = mean(tmp_cnorm)
+                        if twoSz == 0
+                            cnorm += tmp_cnorm
+                            cene += tmp_cene
+                            cene2 += tmp_cene2
+                        else
+                            cnorm += 2 * tmp_cnorm
+                            cene += 2 * tmp_cene
+                            cene2 += 2 * tmp_cene2
+                            χ_t[repeat] += twoSz * twoSz * mean_tmp_cnorm
+                            @assert χ_t[repeat] >= 0 "χ = $(χ_t[repeat]) is negative!"
+                        end
                         iSz += 1
                     end
+                    mean_cnorm = mean(cnorm)
+                    C_t[repeat] += mean(cene2) / mean_cnorm - mean(cene) ^ 2 / (mean_cnorm ^ 2)
+                    @assert C_t[repeat] >= 0 "C = $(C_t[repeat]) is negative!"
                 else
                     cnorm, cene, cene2, k, ret = calc_canon(mp, intr, eneGS[realization], beta)
                     check_converge(ret, realization, repeat, beta, k)
@@ -230,44 +230,48 @@ function main(mp)
             C[realization, Tindex] = beta * beta * mean_C_t
             std_C[realization, Tindex] = beta * beta * std(C_t, corrected = true, mean = mean_C_t)
             if mp.flag_Sz
+                χ_t　/= 4
                 mean_χ_t = mean(χ_t)
                 χ[realization, Tindex] = beta * mean_χ_t
                 std_χ[realization, Tindex] = beta * std(χ_t, corrected = true, mean = mean_χ_t)
             end
         end #for Tindex in 1:Tsteps
     end #for realization=0:realizations
-    Cave = mean(C, dims = 1) / mp.N
-    Cerr = sqrt.(mean(std_C .^ 2, dims = 1) / mp.realizations) / mp.N
     if mp.flag_cal; return; end
-    if mp.flag_Sz
+    if mp.flag_Sz 
+        Cave = mean(C, dims = 1) / mp.N 
+        Cerr = sqrt.(mean(std_C .^ 2, dims = 1) / mp.realizations) / mp.N
         χave = mean(χ, dims = 1) / mp.N
         χerr = sqrt.(mean(std_χ .^ 2, dims = 1) / mp.realizations) / mp.N
-        writedlm("CSHN$(mp.N)T$(mp.Tmin)_$(mp.Tmax)_Sz.dat", [T C' Cerr'])
-        writedlm("chiSHN$(mp.N)T$(mp.Tmin)_$(mp.Tmax)_Sz.dat", [T χ' χerr'])
+        writedlm("CN$(mp.N)T$(mp.Tmin)_$(mp.Tmax)_Sz.dat", [T C' Cerr'])
+        writedlm("chiN$(mp.N)T$(mp.Tmin)_$(mp.Tmax)_Sz.dat", [T χ' χerr'])
     else
-        writedlm("CSHN$(mp.N)T$(mp.Tmin)_$(mp.Tmax).dat", [T C' Cerr'])
+        Cave = mean(C, dims = 1) / mp.N
+        Cerr = sqrt.(mean(std_C .^ 2, dims = 1) / mp.realizations) / mp.N
+    
+        writedlm("CN$(mp.N)T$(mp.Tmin)_$(mp.Tmax).dat", [T C' Cerr'])
     end
 end
 
-
+#l = 0.894202698 #L6J1.0g0.6
 #l = 0.894202698 #L30J1.0g0.6
-l =  0.8932157447#L18J1.0g1.0
+#l =  0.8932157447#L18J1.0g1.0
 #l =  0.8937822841#L18J1.0g0.6
 #l =  0.9623002067#L18J1.0g0.0
-
-N = 4
+l = 2.00001
+N = 6
 realizations = 1
-samples = 1
-steps = 300
-twoS = 1
+samples = 100
+steps = 1000
+twoS = 2
 
 parsed_args = parse_commandline()
 if parsed_args["calibration"]
     Tsteps = 2
     repeats = 10
 else
-    Tsteps = 100
-    repeats = 250
+    Tsteps = 50
+    repeats = 500
 end
 
 modpara = mp(l, N, twoS, realizations, samples, repeats, steps, parsed_args["Tmin"], parsed_args["Tmax"], Tsteps, parsed_args["calibration"], parsed_args["energy"], parsed_args["Sz"])
